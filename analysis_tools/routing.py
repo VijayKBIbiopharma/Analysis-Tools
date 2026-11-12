@@ -50,25 +50,39 @@ TWO_SAMPLE_T = "two_sample_t"
 PAIRED_T = "paired_t"
 ONE_WAY_ANOVA = "one_way_anova"
 KRUSKAL_WALLIS = "kruskal_wallis"
-LEVENE = "levene"
+BROWN_FORSYTHE = "brown_forsythe"
+WELCH_ANOVA = "welch_anova"
 CHI_SQUARE = "chi_square"
 TWO_PROPORTIONS = "two_proportions"
 
-#: How each test reads, and where the same thing lives in Minitab. The Minitab
-#: path is carried so a result can be reproduced independently by someone who
-#: does not trust this tool yet, which is the fastest way to earn the trust.
+#: The package results are quoted against, so a user can reproduce them.
+REFERENCE_PACKAGE = "JMP 19"
+
+#: How each test reads, and where the same thing lives in JMP. The path is
+#: carried so a result can be reproduced by someone who does not trust this tool
+#: yet, which is the fastest way to earn the trust.
+#:
+#: The variance test is deliberately named Brown-Forsythe rather than Levene.
+#: JMP's Unequal Variances report shows both, and they differ: its Levene row
+#: centres on the group mean, its Brown-Forsythe row on the median. This tool
+#: uses the median, so the Brown-Forsythe row is the one that will agree.
+#: Pointing someone at the wrong row of the right report is worse than giving no
+#: reference at all.
 TESTS = {
-    REGRESSION: ("Regression", "Stat > Regression > Fitted Line Plot"),
-    MULTIPLE_REGRESSION: ("Multiple regression", "Stat > Regression > Regression > Fit Regression Model"),
-    GLM: ("General Linear Model", "Stat > ANOVA > General Linear Model"),
-    LOGISTIC: ("Logistic regression", "Stat > Regression > Binary Logistic Regression"),
-    TWO_SAMPLE_T: ("2-sample t-test", "Stat > Basic Statistics > 2-Sample t"),
-    PAIRED_T: ("Paired t-test", "Stat > Basic Statistics > Paired t"),
-    ONE_WAY_ANOVA: ("One-way ANOVA", "Stat > ANOVA > One-Way"),
-    KRUSKAL_WALLIS: ("Kruskal-Wallis", "Stat > Nonparametrics > Kruskal-Wallis"),
-    LEVENE: ("Levene's test for equal variances", "Stat > ANOVA > Test for Equal Variances"),
-    CHI_SQUARE: ("Chi-square test", "Stat > Tables > Cross Tabulation and Chi-Square"),
-    TWO_PROPORTIONS: ("2-proportions test", "Stat > Basic Statistics > 2 Proportions"),
+    REGRESSION: ("Regression", "Analyze > Fit Y by X > Bivariate > Fit Line"),
+    MULTIPLE_REGRESSION: ("Multiple regression", "Analyze > Fit Model > Standard Least Squares"),
+    GLM: ("General Linear Model", "Analyze > Fit Model > Standard Least Squares"),
+    LOGISTIC: ("Logistic regression", "Analyze > Fit Y by X > Logistic"),
+    TWO_SAMPLE_T: ("2-sample t-test", "Analyze > Fit Y by X > Oneway > t Test"),
+    PAIRED_T: ("Paired t-test", "Analyze > Matched Pairs"),
+    ONE_WAY_ANOVA: ("One-way ANOVA", "Analyze > Fit Y by X > Oneway > Means/Anova"),
+    WELCH_ANOVA: ("Welch ANOVA", "Analyze > Fit Y by X > Oneway > Unequal Variances (Welch's test)"),
+    KRUSKAL_WALLIS: ("Kruskal-Wallis", "Analyze > Fit Y by X > Oneway > Nonparametric > Wilcoxon Test"),
+    BROWN_FORSYTHE: ("Brown-Forsythe test for equal variances",
+                     "Analyze > Fit Y by X > Oneway > Unequal Variances (Brown-Forsythe row)"),
+    CHI_SQUARE: ("Chi-square test", "Analyze > Fit Y by X > Contingency > Tests"),
+    TWO_PROPORTIONS: ("2-proportions test",
+                      "Analyze > Fit Y by X > Contingency > Two Sample Test for Proportions"),
 }
 
 
@@ -88,7 +102,8 @@ class Step:
         return TESTS[self.test][0]
 
     @property
-    def minitab(self) -> str:
+    def verify_in(self) -> str:
+        """Where the same number lives in JMP."""
         return TESTS[self.test][1]
 
 
@@ -137,17 +152,23 @@ def _single_x(x_role: str, y_role: str) -> tuple:
         if x_role == ATTRIBUTE_2:
             return (
                 [Step(TWO_SAMPLE_T, "centering", "Do the two groups have the same average?"),
-                 Step(LEVENE, "spread", "Do the two groups vary by the same amount?")],
+                 Step(BROWN_FORSYTHE, "spread", "Do the two groups vary by the same amount?")],
                 "R-squared (adjusted), from the equivalent one-way analysis.",
                 [],
             )
         # three or more levels
         return (
             [Step(ONE_WAY_ANOVA, "centering", "Do the groups have the same average?",
-                  conditional_on="Kruskal-Wallis is used instead when the residuals "
-                                 "are not normal or the groups do not vary by the "
-                                 "same amount. Both checks are run and reported."),
-             Step(LEVENE, "spread", "Do the groups vary by the same amount?")],
+                  conditional_on="The chart says to use Kruskal-Wallis if the data "
+                                 "is non-normal or the variances are unequal. Those "
+                                 "are two different problems with two different "
+                                 "remedies, and JMP separates them: unequal "
+                                 "variances call for Welch ANOVA, which still "
+                                 "compares averages; non-normality calls for "
+                                 "Kruskal-Wallis, which compares ranks. Both checks "
+                                 "are run, the branch is taken on the result, and "
+                                 "the numbers that decided it are reported."),
+             Step(BROWN_FORSYTHE, "spread", "Do the groups vary by the same amount?")],
             "R-squared (adjusted): the share of the variation in the response the "
             "grouping accounts for.",
             [],
@@ -243,7 +264,7 @@ def plan_analysis(x_roles: list, y_role, *, paired: bool = False,
             steps[0] = Step(PAIRED_T, "centering",
                             "Across the same units measured twice, is the average "
                             "difference zero?")
-            steps = [s for s in steps if s.test != LEVENE]
+            steps = [s for s in steps if s.test != BROWN_FORSYTHE]
             notes = notes + [
                 "Paired data has two observations on each unit, so the comparison "
                 "is of the differences. There is no separate spread test for paired "
@@ -265,10 +286,11 @@ def _add_cautions(plan: Plan, x_list: list, y_role, n_rows: Optional[int]) -> No
             thin = sorted((v, k) for k, v in role.counts.items())
             fewest, level = thin[0]
             if fewest < 2:
-                plan.blockers.append(
-                    "“%s” has only one row at %s. A group of one has no spread to "
-                    "compare and contributes almost nothing to a comparison of "
-                    "averages." % (role.name, level)
+                plan.cautions.append(
+                    "“%s” has only one row at %s. That level has no spread of its "
+                    "own, so it is left out of the comparison of spreads — which "
+                    "is what JMP does — and contributes almost nothing to the "
+                    "comparison of averages." % (role.name, level)
                 )
             elif fewest < 5:
                 plan.cautions.append(

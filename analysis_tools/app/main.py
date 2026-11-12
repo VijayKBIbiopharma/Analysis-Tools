@@ -18,7 +18,7 @@ from __future__ import annotations
 import streamlit as st
 
 from analysis_tools import __version__
-from analysis_tools.app import explore
+from analysis_tools.app import compare_page, explore
 from analysis_tools.io import excel_sheet_names, read_delimited, read_excel
 from analysis_tools.logging_setup import configure, get
 
@@ -33,7 +33,7 @@ WORKBOOK = ("xlsx", "xlsm", "xls")
 #: goes looking for something that is not there.
 MODULES = [
     ("Explore", "What is in this file", True),
-    ("Compare groups", "Which test applies, and run it", False),
+    ("Compare groups", "Which test applies, and run it", True),
     ("Capability", "Is the process capable, and is it stable", False),
     ("Measurement systems", "Gage R&R, and whether the method can see it", False),
     ("Relationships", "Regression, model reduction", False),
@@ -65,9 +65,10 @@ def main() -> None:
         _welcome()
         return
 
-    built = {name: ok for name, _, ok in MODULES}
-    if built.get(choice):
-        explore.render(table)
+    pages = {"Explore": explore.render, "Compare groups": compare_page.render}
+    renderer = pages.get(choice)
+    if renderer is not None:
+        renderer(table)
     else:
         _not_built_yet(choice)
 
