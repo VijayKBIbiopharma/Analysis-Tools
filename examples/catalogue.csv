@@ -1,0 +1,5 @@
+Factor,Levels,Min,Max,Step
+Promoter,CMV; EF1a; CAG; SV40,,,
+Marker,Puromycin; Hygromycin; Blasticidin,,,
+Helper,pHelper-A| pHelper-B| pHelper-C| pHelper-D,,,
+Copies,,1,4,1

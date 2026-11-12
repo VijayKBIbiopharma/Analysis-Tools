@@ -1,0 +1,24 @@
+# Runtime dependencies, pinned exactly.
+#
+# Every one is mainstream, actively maintained, and carried by the major
+# distributions. Nothing here is a niche package, a fork, or a wrapper around a
+# binary blob. For the ECP dependency review (intake step 4), the justification
+# for each is one line:
+#
+#   numpy        array arithmetic. The foundation everything else builds on.
+#   pandas       tabular data. Reading files, column handling, group-by.
+#   scipy        the statistical distributions and hypothesis tests. t, F,
+#                chi-square, Levene, Kruskal-Wallis, Anderson-Darling. Using
+#                scipy rather than hand-rolling these is the point: they are
+#                the reference implementations the results are checked against.
+#   statsmodels  ANOVA tables, logistic regression, lack-of-fit, model
+#                selection by AIC/BIC.
+#   scikit-learn regression and classification models, cross-validation.
+#   streamlit    the web interface. Named in the ECP as a recommended framework.
+#
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.14.1
+statsmodels==0.14.4
+scikit-learn==1.5.2
+streamlit==1.40.2

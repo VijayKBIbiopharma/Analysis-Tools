@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # gitleaks and trufflehog scan history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: pytest -q
+
+      # The application must start, not merely import. A missing Streamlit entry
+      # point or a relative-import mistake passes every unit test and fails on
+      # the first page load, which is exactly the class of fault this catches.
+      - name: The app starts and serves
+        run: |
+          streamlit run app.py --server.port 8501 --server.headless true \
+            --browser.gatherUsageStats false &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8501/_stcore/health >/dev/null; then
+              echo "serving"; exit 0
+            fi
+            sleep 2
+          done
+          echo "the app did not come up"; exit 1
+
+      - name: Container builds
+        run: docker build -t analysis-tools:ci .
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ECP section 2: gitleaks and Trufflehog must pass, no hard-coded secrets.
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --results=verified,unknown
+
+      # SonarQube needs KBI's server. Enable this once the platform team has
+      # provided SONAR_HOST_URL and SONAR_TOKEN as repository secrets.
+      # - name: SonarQube
+      #   uses: SonarSource/sonarqube-scan-action@v4
+      #   env:
+      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

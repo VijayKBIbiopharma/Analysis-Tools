@@ -1,0 +1,5 @@
+Program_ID,ProteinClass,MW_kDa,pI,Promoter,Notes,Date
+PRG-1,mAb,148,8.2,CMV,rush,2026-01-04
+PRG-2,bispecific,104,7.1,,standard,2026-01-11
+PRG-3,nanobody-fusion,41,9.8,,new modality,2026-02-02
+PRG-4,mAb,310,8.0,,very large,2026-02-09
