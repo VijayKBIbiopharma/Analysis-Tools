@@ -89,20 +89,65 @@ def _sidebar_header() -> None:
     st.sidebar.divider()
 
 
-def _file_section():
-    """Upload, held in memory only."""
-    st.sidebar.markdown("#### Your data")
-    uploaded = st.sidebar.file_uploader(
-        "Spreadsheet or delimited file",
-        type=list(DELIMITED + WORKBOOK),
-        help="Held in memory for this session only. Never written to disk.",
-    )
-    if uploaded is None:
-        st.session_state.pop("table", None)
-        return None
+#: The bundled examples, with the module each one is for. Offered because a
+#: tool that cannot be opened without first finding a file is a tool most
+#: people never open - on a phone or a locked-down desktop, "upload a CSV" is
+#: where the trial ends. These are read-only and synthetic; no real process
+#: data ships with the application.
+EXAMPLES = {
+    "— none, I will upload my own —": None,
+    "Construct history (vector selection)": "history.csv",
+    "Clone screen (early reads vs final)": "clone-screen.csv",
+    "Passage stability (generation limits)": "passage-stability.csv",
+    "Completed DOE (effects, curvature)": "doe-completed.csv",
+    "Capability run (Cp, Cpk, stability)": "capability-run.csv",
+    "Gage study (measurement systems)": "gage-study.csv",
+    "Process runs (compare groups)": "process-runs.csv",
+}
 
-    data = uploaded.getvalue()
-    name = uploaded.name
+
+def _examples_directory():
+    """Where the bundled examples live, wherever the app was started from."""
+    from pathlib import Path
+    return Path(__file__).resolve().parent.parent.parent / "examples"
+
+
+def _file_section():
+    """Upload, held in memory only — or one of the bundled examples."""
+    st.sidebar.markdown("#### Your data")
+
+    # The example picker goes first, above the uploader, because of what the
+    # uploader looks like on a phone: a large "drag and drop file here" box,
+    # an instruction a phone cannot follow, filling the screen and pushing
+    # everything else below the fold. Ordered this way there is always
+    # something to tap.
+    chosen = st.sidebar.selectbox(
+        "Start with an example", list(EXAMPLES),
+        help="Synthetic data, shipped with the tool. Each one is built to "
+             "show a particular module — including the cases where it "
+             "refuses to give an answer.")
+
+    uploaded = st.sidebar.file_uploader(
+        "or load your own file",
+        type=list(DELIMITED + WORKBOOK),
+        help="Held in memory for this session only. Never written to disk. "
+             "A file you load here is used instead of the example above.",
+    )
+
+    if uploaded is None:
+        filename = EXAMPLES[chosen]
+        if filename is None:
+            st.session_state.pop("table", None)
+            return None
+        path = _examples_directory() / filename
+        try:
+            data, name = path.read_bytes(), filename
+        except OSError as exc:                    # noqa: BLE001 - shown
+            st.sidebar.error("That example is missing from this copy.")
+            log.warning("example %s unreadable: %s", filename, exc)
+            return None
+    else:
+        data, name = uploaded.getvalue(), uploaded.name
     suffix = name.rsplit(".", 1)[-1].lower() if "." in name else ""
 
     try:
@@ -126,7 +171,8 @@ def _file_section():
         return None
 
     log.info("read %s: %s", name, table.shape_text)
-    st.sidebar.success("%s" % table.shape_text)
+    st.sidebar.success("%s%s" % (table.shape_text,
+                                 "" if uploaded is not None else "  ·  example"))
     st.session_state["table"] = table
     return table
 
