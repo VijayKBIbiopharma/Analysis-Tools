@@ -524,3 +524,124 @@ def interaction_plot(frame: pd.DataFrame, first: str, second: str,
                    "%s x %s. Parallel lines mean no interaction; lines that "
                    "cross or fan mean the effect of one depends on the other."
                    % (first, second))
+
+
+# ------------------------------------------------- cell line development
+
+def importance_bars(reads: Sequence, ceiling: Optional[float] = None,
+                    late: str = "the final measurement") -> alt.LayerChart:
+    """Early reads by how much they carry, with the noise floor drawn.
+
+    Every ranking has a top entry, including a ranking of pure noise. The
+    floor is the point of the chart: a bar below it ranks high among columns
+    that know nothing.
+    """
+    data = pd.DataFrame([
+        {"Read": r.name, "Importance": float(r.importance),
+         "Verdict": "Carries information" if r.above_noise else "No evidence",
+         "p (adjusted)": ("%.4g" % r.p_adjusted) if r.p_adjusted is not None else "—"}
+        for r in reads
+    ]).sort_values("Importance", ascending=False)
+
+    bars = alt.Chart(data).mark_bar(cornerRadiusEnd=4, height=18).encode(
+        y=alt.Y("Read:N", sort="-x", title=None),
+        x=alt.X("Importance:Q", title="Share of the explanation of %s" % late),
+        color=alt.Color("Verdict:N",
+                        scale=alt.Scale(domain=["Carries information", "No evidence"],
+                                        range=[DATA, "#c9c8c2"]),
+                        legend=alt.Legend(title=None, orient="top")),
+        tooltip=["Read:N", alt.Tooltip("Importance:Q", format=".4f"),
+                 "Verdict:N", "p (adjusted):N"],
+    )
+    layers = [bars]
+
+    # A tick per bar rather than one line across the chart. The single line
+    # was the 95th percentile of the largest importance under shuffling -
+    # one number for the whole set - while the verdict is decided per read
+    # and adjusted for how many were tested. Those two can disagree: measured
+    # on weak signals, about one bar in sixty came out grey while sitting
+    # past the line, which reads as a contradiction rather than as the
+    # multiple-testing adjustment it is. Each read's own floor cannot
+    # disagree with its own bar.
+    per_read = pd.DataFrame([
+        {"Read": r.name, "Floor": float(r.noise_ceiling)}
+        for r in reads if getattr(r, "noise_ceiling", None) is not None])
+    if not per_read.empty:
+        layers.append(alt.Chart(per_read).mark_tick(
+            color=CRITICAL, thickness=2, size=22).encode(
+            y=alt.Y("Read:N", sort="-x"), x="Floor:Q",
+            tooltip=["Read:N", alt.Tooltip("Floor:Q", format=".4f",
+                                           title="This read's noise floor")]))
+        subtitle = ("The tick is where this read's own score reaches when the "
+                    "response is shuffled. Grey past a tick means the read "
+                    "did not survive adjusting for how many were tested.")
+    elif ceiling:
+        layers.append(alt.Chart(pd.DataFrame({"x": [float(ceiling)]})).mark_rule(
+            color=CRITICAL, size=2, strokeDash=[5, 3]).encode(x="x:Q"))
+        layers.append(alt.Chart(pd.DataFrame({"x": [float(ceiling)]})).mark_text(
+            text="noise floor", align="left", dx=5, dy=-8, color=CRITICAL,
+            fontSize=11).encode(x="x:Q", y=alt.value(4)))
+        subtitle = ("Bars short of the floor rank high among columns that know "
+                    "nothing.")
+    else:
+        subtitle = "Importance is a share, so it always sums to one."
+    return _finish(alt.layer(*layers), subtitle)
+
+
+def drift_with_bound(points: pd.DataFrame, curve: pd.DataFrame,
+                     generation: str, response: str,
+                     spec: Optional[float] = None,
+                     limit: Optional[float] = None,
+                     max_observed: Optional[float] = None) -> alt.LayerChart:
+    """Passage data, the fitted drift, and the confidence bound that sets the limit.
+
+    The bound is the load-bearing line, so it is drawn solid and the fit
+    dashed - the opposite of the usual emphasis, because the limit is read off
+    the bound. Beyond the last real passage point the band is shaded to show
+    where measurement stops and arithmetic begins.
+    """
+    # Not anchored at zero. A cell line drifting from 3.05 to 2.45 g/L is the
+    # whole subject of the chart, and on a zero baseline it is a flat line in
+    # the top fifth of the frame.
+    span = alt.Scale(zero=False, nice=True)
+    band = alt.Chart(curve).mark_area(opacity=0.3, color=DATA_SOFT).encode(
+        x=alt.X("Generation:Q", title=generation),
+        y=alt.Y("Lower bound:Q", title=response, scale=span),
+        y2="Upper bound:Q")
+    fit = alt.Chart(curve).mark_line(color=DATA, size=1.5,
+                                     strokeDash=[4, 3]).encode(
+        x="Generation:Q", y=alt.Y("Fitted:Q", scale=span))
+    falling = float(curve["Fitted"].iloc[-1]) < float(curve["Fitted"].iloc[0])
+    edge = "Lower bound" if falling else "Upper bound"
+    bound = alt.Chart(curve).mark_line(color=DATA, size=2).encode(
+        x="Generation:Q", y=alt.Y("%s:Q" % edge, title=response, scale=span))
+    dots = alt.Chart(points).mark_circle(size=70, color=SECOND, opacity=0.85).encode(
+        x="%s:Q" % generation, y=alt.Y("%s:Q" % response, scale=span),
+        tooltip=["%s:Q" % generation, alt.Tooltip("%s:Q" % response, format=".4g")])
+
+    layers = [band, fit, bound, dots]
+    if max_observed is not None:
+        shade = pd.DataFrame({"x": [float(max_observed)],
+                              "x2": [float(curve["Generation"].max())]})
+        layers.insert(0, alt.Chart(shade).mark_rect(
+            opacity=0.07, color=MUTED).encode(x="x:Q", x2="x2:Q"))
+        layers.append(alt.Chart(shade).mark_rule(
+            color=MUTED, size=1, strokeDash=[2, 3]).encode(x="x:Q"))
+        layers.append(alt.Chart(shade).mark_text(
+            text="beyond the data", align="left", dx=5, dy=10, color=MUTED,
+            fontSize=11).encode(x="x:Q", y=alt.value(0)))
+    if spec is not None:
+        layers.append(alt.Chart(pd.DataFrame({"y": [float(spec)]})).mark_rule(
+            color=CRITICAL, size=2).encode(y="y:Q"))
+        layers.append(alt.Chart(pd.DataFrame({"y": [float(spec)]})).mark_text(
+            text="specification", align="left", dx=5, dy=-8, color=CRITICAL,
+            fontSize=11).encode(y="y:Q", x=alt.value(4)))
+    if limit is not None:
+        layers.append(alt.Chart(pd.DataFrame({"x": [float(limit)]})).mark_rule(
+            color=WARNING, size=2, strokeDash=[6, 3]).encode(x="x:Q"))
+        layers.append(alt.Chart(pd.DataFrame({"x": [float(limit)]})).mark_text(
+            text="limit", align="left", dx=5, dy=-8, color=WARNING,
+            fontSize=11).encode(x="x:Q", y=alt.value(4)))
+    return _finish(alt.layer(*layers),
+                   "The limit is read off the solid bound, not the dashed fit: "
+                   "half of future lines would sit below the fit.")

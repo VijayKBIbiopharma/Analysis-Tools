@@ -18,8 +18,8 @@ from __future__ import annotations
 import streamlit as st
 
 from analysis_tools import __version__
-from analysis_tools.app import (capability_page, compare_page, doe_page,
-                                explore, msa_page, relate_page)
+from analysis_tools.app import (capability_page, cld_page, compare_page,
+                                doe_page, explore, msa_page, relate_page)
 from analysis_tools.io import excel_sheet_names, read_delimited, read_excel
 from analysis_tools.logging_setup import configure, get
 
@@ -39,7 +39,8 @@ MODULES = [
     ("Measurement systems", "Gage R&R, and whether the method can see it", True),
     ("Relationships", "Regression, model reduction", True),
     ("Design of experiments", "Design, analyse, reduce, optimise", True),
-    ("Cell line development", "Vector selection, clone screening", False),
+    ("Cell line development",
+     "Vector selection, clone screening, generation limits", True),
     ("Learn", "How each method works, and when it does not", False),
 ]
 
@@ -73,7 +74,8 @@ def main() -> None:
              "Capability": capability_page.render,
              "Measurement systems": msa_page.render,
              "Relationships": relate_page.render,
-             "Design of experiments": doe_page.render}
+             "Design of experiments": doe_page.render,
+             "Cell line development": cld_page.render}
     renderer = pages.get(choice)
     if renderer is not None:
         renderer(table)
