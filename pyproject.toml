@@ -21,3 +21,9 @@ include = ["analysis_tools*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The repository root on the import path, so "pytest" finds analysis_tools
+# the same way "python -m pytest" does. Without it the two invocations differ:
+# the module form puts the working directory on sys.path and the bare command
+# does not, so a suite that passes locally collapses in CI with
+# ModuleNotFoundError before a single test runs.
+pythonpath = ["."]
