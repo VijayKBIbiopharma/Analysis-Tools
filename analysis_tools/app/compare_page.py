@@ -11,6 +11,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from analysis_tools import charts
+
 from analysis_tools.compare import (
     DIFFERENT, INCONCLUSIVE, NO_EVIDENCE, chi_square, compare_groups,
     logistic_regression, paired_t, simple_regression, two_sample_t,
@@ -116,6 +118,50 @@ def render(table) -> None:
     st.divider()
     for outcome in outcomes:
         _show(outcome)
+
+    # The analysis path routes to two graphical tools in every cell, not one.
+    # The statistics say whether; the pictures say what it looks like, which is
+    # where an outlier carrying the whole result becomes visible.
+    _pictures(frame, x_roles[0], y_role)
+
+
+def _pictures(frame, x_role, y_role) -> None:
+    from analysis_tools.roles import ATTRIBUTE_2, ATTRIBUTE_3PLUS, VARIABLES
+
+    x_name, y_name = x_role.name, y_role.name
+    st.markdown("#### The pictures")
+    st.caption(
+        "The analysis path asks for two of these in every cell. A p-value says "
+        "whether the groups differ; these say whether one observation is "
+        "carrying the result, whether a spread is lopsided, and whether the "
+        "shape is what the test assumed.")
+
+    if y_role.role == VARIABLES and x_role.role in (ATTRIBUTE_2, ATTRIBUTE_3PLUS):
+        st.altair_chart(charts.box_by_group(frame, x_name, y_name),
+                        use_container_width=True)
+        st.altair_chart(charts.main_effects(frame, x_name, y_name),
+                        use_container_width=True)
+        if x_role.role == ATTRIBUTE_3PLUS:
+            picture = charts.anom(frame, x_name, y_name)
+            if picture is not None:
+                st.altair_chart(picture, use_container_width=True)
+                st.caption(
+                    "ANOM answers what an ANOVA does not: an ANOVA says the "
+                    "groups are not all alike, this says which ones stand out. "
+                    "The limits use a Bonferroni approximation to Nelson's h "
+                    "factors, which is slightly conservative — JMP uses exact "
+                    "values, so its limits sit a touch tighter.")
+    elif y_role.role == VARIABLES and x_role.role == VARIABLES:
+        st.altair_chart(charts.scatter_with_fit(frame, x_name, y_name),
+                        use_container_width=True)
+        pair = frame[[x_name, y_name]].apply(pd.to_numeric, errors="coerce").dropna()
+        if len(pair) >= 3:
+            import numpy as np
+            slope, intercept = np.polyfit(pair[x_name], pair[y_name], 1)
+            fitted = intercept + slope * pair[x_name]
+            st.altair_chart(
+                charts.residuals_vs_fitted(fitted, pair[y_name] - fitted),
+                use_container_width=True)
 
 
 def _run(plan, frame, x_roles, y_role, paired):

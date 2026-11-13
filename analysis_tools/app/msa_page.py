@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from analysis_tools import charts
 from analysis_tools.msa import ACCEPTABLE, MARGINAL, gauge_rr
 from analysis_tools.roles import ATTRIBUTE_2, ATTRIBUTE_3PLUS, VARIABLES
 
@@ -75,6 +76,10 @@ def render(table) -> None:
         st.markdown("#### %s %s" % (BADGE.get(result.verdict, "•"),
                                     result.verdict.capitalize()))
         st.markdown(result.plain)
+
+        st.altair_chart(
+            charts.variability_chart(frame, part, operator, measurement),
+            use_container_width=True)
 
         metrics = st.columns(4)
         metrics[0].metric("Total Gage R&R", "%.1f%%" % result.grr_pct)

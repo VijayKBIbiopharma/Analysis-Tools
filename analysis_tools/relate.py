@@ -110,6 +110,10 @@ class ModelFit:
     checks: list = field(default_factory=list)
     verify_in: str = VERIFY_FIT
     failed: Optional[str] = None
+    #: Kept so the residual plot can be drawn. The single most informative
+    #: diagnostic there is, and invisible in any summary statistic.
+    fitted: Optional[np.ndarray] = None
+    residuals: Optional[np.ndarray] = None
 
 
 def _quote(name: str) -> str:
@@ -191,6 +195,8 @@ def fit_model(frame: pd.DataFrame, y_name: str, x_names: Sequence[str],
     except Exception:                               # noqa: BLE001 - optional
         fit.anova = None
 
+    fit.fitted = np.asarray(model.fittedvalues, dtype=float)
+    fit.residuals = np.asarray(model.resid, dtype=float)
     fit.checks = [check_normality(model.resid, "the residuals")]
     fit.cautions = _cautions(fit, n, len(pieces))
     fit.plain = _summarise(fit, y_name)

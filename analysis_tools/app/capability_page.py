@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from analysis_tools import charts
 from analysis_tools.capability import MINIMUM_CAPABLE, assess_capability
 from analysis_tools.roles import VARIABLES
 
@@ -58,13 +59,13 @@ def render(table) -> None:
         with st.container(border=True):
             st.markdown("#### 1. Is it stable?")
             st.markdown(result.stability.plain)
-            chart = pd.DataFrame({
-                column: series.values,
-                "centre": result.stability.centre,
-                "upper limit": result.stability.upper,
-                "lower limit": result.stability.lower,
-            })
-            st.line_chart(chart, height=260)
+            flagged = sorted({i for signal in result.stability.signals
+                              for i in signal.points})
+            st.altair_chart(
+                charts.control_chart(series.values, result.stability.centre,
+                                     result.stability.upper,
+                                     result.stability.lower, flagged, column),
+                use_container_width=True)
             st.caption("**Reproduce it in JMP:** %s" % result.stability.verify_in)
     else:
         st.info("Fewer than eight measurements, so no control chart is drawn — "
@@ -74,6 +75,10 @@ def render(table) -> None:
     with st.container(border=True):
         st.markdown("#### 2. Is it capable?")
         st.markdown(result.plain)
+        st.altair_chart(
+            charts.capability_histogram(series.values, lsl=lsl, usl=usl,
+                                        target=target, name=column),
+            use_container_width=True)
 
         if result.indices:
             overall = {k: v for k, v in result.indices.items() if k.startswith("P")}

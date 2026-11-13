@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from analysis_tools import charts
 from analysis_tools.relate import (
     MAX_SUBSET_TERMS, VIF_CONCERN, VIF_SERIOUS, all_possible_models, fit_model,
 )
@@ -96,6 +97,15 @@ def render(table) -> None:
         if fit.anova is not None:
             with st.expander("The ANOVA table"):
                 st.dataframe(fit.anova, use_container_width=True)
+
+        if fit.fitted is not None and fit.residuals is not None:
+            st.altair_chart(
+                charts.residuals_vs_fitted(fit.fitted, fit.residuals),
+                use_container_width=True)
+            st.caption(
+                "A funnel means the spread changes with the level; a curve "
+                "means a straight line was the wrong shape. Neither shows up "
+                "in adjusted R².")
 
         for caution in fit.cautions:
             st.warning(caution, icon="⚠️")
