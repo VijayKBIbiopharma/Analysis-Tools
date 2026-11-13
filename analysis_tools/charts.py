@@ -407,3 +407,120 @@ def variability_chart(frame: pd.DataFrame, part: str, operator: str,
     return _finish(alt.layer(connect, dots),
                    "Every reading by part, coloured by %s. Lines join each "
                    "%s's averages." % (operator, operator.lower()))
+
+
+# ------------------------------------------------------------------ designs
+
+def effects_pareto(effects: Sequence, margin: Optional[float] = None,
+                   response: str = "the response") -> alt.LayerChart:
+    """Effects by size, largest first, with the significance line.
+
+    The chart the project guide asks for by name: "keep terms above the red
+    line". Sorting by absolute size and drawing the threshold turns a table of
+    p-values into one glance.
+    """
+    data = pd.DataFrame([
+        {"Term": e.term, "Effect": abs(float(e.effect)),
+         "Direction": "Increases %s" % response if e.effect > 0
+                      else "Decreases %s" % response,
+         "Verdict": "Real" if e.significant else "Not distinguishable"}
+        for e in effects
+    ]).sort_values("Effect", ascending=False)
+
+    bars = alt.Chart(data).mark_bar(cornerRadiusEnd=4, height=18).encode(
+        y=alt.Y("Term:N", sort="-x", title=None),
+        x=alt.X("Effect:Q", title="Size of effect (low setting to high)"),
+        color=alt.Color("Verdict:N",
+                        scale=alt.Scale(domain=["Real", "Not distinguishable"],
+                                        range=[DATA, "#c9c8c2"]),
+                        legend=alt.Legend(title=None, orient="top")),
+        tooltip=["Term:N", alt.Tooltip("Effect:Q", format=".4g"),
+                 "Direction:N", "Verdict:N"],
+    )
+    layers = [bars]
+    if margin:
+        line = alt.Chart(pd.DataFrame({"x": [margin]})).mark_rule(
+            color=CRITICAL, size=2, strokeDash=[5, 3]).encode(x="x:Q")
+        label = alt.Chart(pd.DataFrame({"x": [margin]})).mark_text(
+            text="Lenth margin", align="left", dx=5, dy=-8,
+            color=CRITICAL, fontSize=11).encode(x="x:Q", y=alt.value(4))
+        layers += [line, label]
+    return _finish(alt.layer(*layers),
+                   "Effects by size. Bars past the line are the ones to keep.")
+
+
+def effects_normal_plot(effects: Sequence) -> alt.LayerChart:
+    """Effects against normal scores.
+
+    If nothing is real, the effects are just noise and fall on a straight line.
+    The ones that matter are the points that leave it. This catches a large
+    effect that a Pareto shows as merely the tallest bar, because here the
+    comparison is against what noise alone would have looked like.
+    """
+    values = np.array([float(e.effect) for e in effects])
+    order = np.argsort(values)
+    m = values.size
+    scores = stats.norm.ppf((np.arange(1, m + 1) - 0.375) / (m + 0.25))
+    data = pd.DataFrame({
+        "Effect": values[order],
+        "Normal score": scores,
+        "Term": [effects[i].term for i in order],
+        "Verdict": ["Real" if effects[i].significant else "Not distinguishable"
+                    for i in order],
+    })
+    points = alt.Chart(data).mark_point(size=110, filled=True).encode(
+        x=alt.X("Effect:Q", scale=alt.Scale(zero=False)),
+        y=alt.Y("Normal score:Q"),
+        color=alt.Color("Verdict:N",
+                        scale=alt.Scale(domain=["Real", "Not distinguishable"],
+                                        range=[CRITICAL, DATA]),
+                        legend=alt.Legend(title=None, orient="top")),
+        shape=alt.Shape("Verdict:N",
+                        scale=alt.Scale(domain=["Real", "Not distinguishable"],
+                                        range=["triangle-up", "circle"]),
+                        legend=None),
+        tooltip=["Term:N", alt.Tooltip("Effect:Q", format=".4g"), "Verdict:N"],
+    )
+    labels = alt.Chart(data[data["Verdict"] == "Real"]).mark_text(
+        align="left", dx=8, fontSize=11, color=MUTED).encode(
+        x="Effect:Q", y="Normal score:Q", text="Term:N")
+    return _finish(alt.layer(points, labels),
+                   "Effects against normal scores. Noise falls on a line; what "
+                   "matters leaves it.")
+
+
+def interaction_plot(frame: pd.DataFrame, first: str, second: str,
+                     response: str) -> alt.LayerChart:
+    """Two factors together: non-parallel lines mean the effect of one depends
+    on the other.
+
+    The only picture that shows an interaction for what it is. A main-effects
+    plot of two interacting factors looks unremarkable, which is how
+    interactions get missed.
+    """
+    data = frame[[first, second, response]].copy()
+    data[response] = pd.to_numeric(data[response], errors="coerce")
+    data = data.dropna()
+    data[first] = data[first].astype(str)
+    data[second] = data[second].astype(str)
+    summary = data.groupby([first, second])[response].mean().reset_index()
+
+    levels = sorted(summary[second].unique())
+    palette = CATEGORICAL[:len(levels)] if len(levels) <= 3 else None
+    colour = alt.Color(
+        "%s:N" % second,
+        scale=alt.Scale(domain=levels, range=palette) if palette else alt.Undefined,
+        legend=alt.Legend(title=second, orient="top"))
+
+    lines = alt.Chart(summary).mark_line(size=2, point=True).encode(
+        x=alt.X("%s:N" % first, title=first, axis=alt.Axis(labelAngle=0)),
+        y=alt.Y("%s:Q" % response, scale=alt.Scale(zero=False),
+                title="Average %s" % response),
+        color=colour,
+        strokeDash=alt.StrokeDash("%s:N" % second, legend=None),
+        tooltip=[first, second, alt.Tooltip("%s:Q" % response, format=".4g")],
+    )
+    return _finish(lines,
+                   "%s x %s. Parallel lines mean no interaction; lines that "
+                   "cross or fan mean the effect of one depends on the other."
+                   % (first, second))

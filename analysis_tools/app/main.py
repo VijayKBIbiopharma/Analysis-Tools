@@ -18,8 +18,8 @@ from __future__ import annotations
 import streamlit as st
 
 from analysis_tools import __version__
-from analysis_tools.app import (capability_page, compare_page, explore,
-                                msa_page, relate_page)
+from analysis_tools.app import (capability_page, compare_page, doe_page,
+                                explore, msa_page, relate_page)
 from analysis_tools.io import excel_sheet_names, read_delimited, read_excel
 from analysis_tools.logging_setup import configure, get
 
@@ -38,7 +38,7 @@ MODULES = [
     ("Capability", "Is the process capable, and is it stable", True),
     ("Measurement systems", "Gage R&R, and whether the method can see it", True),
     ("Relationships", "Regression, model reduction", True),
-    ("Design of experiments", "Design, analyse, reduce, optimise", False),
+    ("Design of experiments", "Design, analyse, reduce, optimise", True),
     ("Cell line development", "Vector selection, clone screening", False),
     ("Learn", "How each method works, and when it does not", False),
 ]
@@ -63,13 +63,17 @@ def main() -> None:
     )
 
     if table is None:
+        if choice == "Design of experiments":
+            doe_page.render(None)
+            return
         _welcome()
         return
 
     pages = {"Explore": explore.render, "Compare groups": compare_page.render,
              "Capability": capability_page.render,
              "Measurement systems": msa_page.render,
-             "Relationships": relate_page.render}
+             "Relationships": relate_page.render,
+             "Design of experiments": doe_page.render}
     renderer = pages.get(choice)
     if renderer is not None:
         renderer(table)
@@ -133,10 +137,9 @@ def _module_picker(have_data: bool) -> str:
         label = name if built else "%s  ·  not built yet" % name
         labels.append(label)
         lookup[label] = name
-    chosen = st.sidebar.radio(
-        "Module", labels, label_visibility="collapsed",
-        disabled=not have_data,
-    )
+    # The design builder needs no data - you use it before the experiment -
+    # so the picker stays live even with nothing loaded.
+    chosen = st.sidebar.radio("Module", labels, label_visibility="collapsed")
     blurb = next(b for n, b, _ in MODULES if n == lookup[chosen])
     st.sidebar.caption(blurb)
     return lookup[chosen]
