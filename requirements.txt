@@ -15,6 +15,10 @@
 #                selection by AIC/BIC.
 #   scikit-learn regression and classification models, cross-validation.
 #   streamlit    the web interface. Named in the ECP as a recommended framework.
+#   openpyxl     reads .xlsx and .xlsm cell values. pandas delegates to it and
+#                does not depend on it, so it has to be declared here: without
+#                it every other path works and uploading a workbook raises
+#                ModuleNotFoundError in front of the user.
 #
 numpy==2.2.6
 pandas==2.3.3
@@ -22,3 +26,4 @@ scipy==1.14.1
 statsmodels==0.14.4
 scikit-learn==1.5.2
 streamlit==1.40.2
+openpyxl==3.1.5

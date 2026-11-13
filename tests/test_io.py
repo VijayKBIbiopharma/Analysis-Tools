@@ -122,3 +122,59 @@ def test_nothing_in_this_module_opens_a_path():
     for entry in (read_delimited, read_excel, excel_sheet_names):
         first = list(inspect.signature(entry).parameters)[0]
         assert first == "data", "%s should take bytes, not a path" % entry.__name__
+
+
+def test_the_two_dependency_lists_agree():
+    """requirements.txt and pyproject.toml both declare the runtime set.
+
+    Two declarations of the same thing drift. This one started as a single
+    missing line: openpyxl was absent from both, pandas delegates Excel
+    reading to it without depending on it, and the dev machine happened to
+    have it installed. Every test passed locally; CI, installing only what
+    was declared, could not read a workbook — and neither could a container
+    built from the same file.
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+
+    def pinned(text):
+        return {m.group(1).lower(): m.group(2) for m in
+                re.finditer(r'^\s*"?([A-Za-z0-9_.-]+)==([0-9][^"\s,]*)"?,?\s*$',
+                            text, re.MULTILINE)}
+
+    requirements = pinned(Path(root / "requirements.txt").read_text())
+    project = Path(root / "pyproject.toml").read_text()
+    block = project.split("dependencies = [", 1)[1].split("]", 1)[0]
+    declared = pinned(block)
+
+    assert requirements, "no pinned requirements found"
+    assert requirements == declared, (
+        "requirements.txt and pyproject.toml disagree:\n  only in "
+        "requirements.txt: %s\n  only in pyproject.toml: %s\n  different "
+        "versions: %s"
+        % (sorted(set(requirements) - set(declared)),
+           sorted(set(declared) - set(requirements)),
+           sorted(n for n in set(requirements) & set(declared)
+                  if requirements[n] != declared[n])))
+
+
+def test_every_runtime_dependency_is_pinned_exactly():
+    """A floating version is a different application next Tuesday, and the
+    ECP dependency review assesses what is declared, not what resolves."""
+    from pathlib import Path
+    lines = [line.strip() for line in
+             (Path(__file__).resolve().parent.parent / "requirements.txt")
+             .read_text().splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+    assert lines
+    for line in lines:
+        assert "==" in line, "%s is not pinned to an exact version" % line
+
+
+def test_reading_a_workbook_needs_nothing_undeclared():
+    """The import pandas defers until a workbook actually arrives."""
+    import importlib
+    assert importlib.util.find_spec("openpyxl") is not None, (
+        "openpyxl is not installed — reading .xlsx would fail at upload time")
