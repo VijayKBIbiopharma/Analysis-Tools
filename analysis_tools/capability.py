@@ -41,7 +41,7 @@ from typing import Optional, Sequence
 import numpy as np
 from scipy import stats
 
-from analysis_tools.assumptions import check_normality, fmt_p
+from analysis_tools.assumptions import check_normality
 
 #: d2 for a moving range of two consecutive observations. The constant that
 #: turns an average moving range into a standard deviation.

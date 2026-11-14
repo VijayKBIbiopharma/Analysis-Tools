@@ -7,6 +7,7 @@ import streamlit as st
 
 from analysis_tools import charts
 from analysis_tools.capability import MINIMUM_CAPABLE, assess_capability
+from analysis_tools.app.fitness import explain
 from analysis_tools.roles import VARIABLES
 
 
@@ -19,8 +20,7 @@ def render(table) -> None:
 
     measurements = [r.name for r in roles if r.role == VARIABLES]
     if not measurements:
-        st.error("Capability needs a continuous measurement, and this file has "
-                 "none. See **Explore** for how each column was read.", icon="🚫")
+        st.info(explain("Capability", roles, table.source_name), icon="🧭")
         return
 
     st.subheader("Capability")

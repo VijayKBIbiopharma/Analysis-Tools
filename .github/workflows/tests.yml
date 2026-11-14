@@ -23,6 +23,14 @@ jobs:
       - name: Install
         run: pip install -r requirements-dev.txt
 
+      # Catches an undefined name before it reaches a page. The class of
+      # fault this exists for: a guard clause referring to a variable that
+      # does not exist in that function raises NameError only when a user
+      # takes the path that reaches it, which no unit test covers and which
+      # looks to them like the tool is broken.
+      - name: Lint
+        run: pyflakes analysis_tools tests app.py
+
       - name: Tests
         run: pytest -q
 

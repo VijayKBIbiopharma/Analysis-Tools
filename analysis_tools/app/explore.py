@@ -32,8 +32,11 @@ ROLE_ICONS = {
 
 def render(table) -> None:
     frame: pd.DataFrame = table.frame
-    roles = classify_table(frame)
-    st.session_state["roles"] = roles
+    # Already classified at load; recompute only if something cleared it.
+    roles = st.session_state.get("roles")
+    if not roles:
+        roles = classify_table(frame)
+        st.session_state["roles"] = roles
 
     st.subheader("What is in this file")
     read_as = table.source_name + (" — sheet “%s”" % table.sheet if table.sheet else "")

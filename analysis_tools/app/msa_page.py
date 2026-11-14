@@ -7,6 +7,7 @@ import streamlit as st
 
 from analysis_tools import charts
 from analysis_tools.msa import ACCEPTABLE, MARGINAL, gauge_rr
+from analysis_tools.app.fitness import explain
 from analysis_tools.roles import ATTRIBUTE_2, ATTRIBUTE_3PLUS, VARIABLES
 
 BADGE = {"acceptable": "🟢", "marginal": "🟡", "unacceptable": "🔴", "unknown": "⚪"}
@@ -23,6 +24,11 @@ def render(table) -> None:
     groupings = [r.name for r in roles
                  if r.role in (ATTRIBUTE_2, ATTRIBUTE_3PLUS)] + \
                 [r.name for r in roles if r.role == "identifier"]
+
+    if not measurements or len(groupings) < 2:
+        st.info(explain("Measurement systems", roles, table.source_name),
+                icon="🧭")
+        return
 
     st.subheader("Measurement systems")
     st.caption(

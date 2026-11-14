@@ -9,6 +9,7 @@ from analysis_tools import charts
 from analysis_tools.relate import (
     MAX_SUBSET_TERMS, VIF_CONCERN, VIF_SERIOUS, all_possible_models, fit_model,
 )
+from analysis_tools.app.fitness import explain
 from analysis_tools.roles import ATTRIBUTE_2, ATTRIBUTE_3PLUS, VARIABLES
 
 
@@ -24,9 +25,7 @@ def render(table) -> None:
     inputs_available = [r.name for r in roles if r.analysable]
 
     if not responses or len(inputs_available) < 2:
-        st.error("This needs a continuous response and at least two usable "
-                 "inputs. See **Explore** for how each column was read.",
-                 icon="🚫")
+        st.info(explain("Relationships", roles, table.source_name), icon="🧭")
         return
 
     st.subheader("Relationships")

@@ -18,10 +18,12 @@ from __future__ import annotations
 import streamlit as st
 
 from analysis_tools import __version__
+from analysis_tools.app.fitness import suitable
 from analysis_tools.app import (capability_page, cld_page, compare_page,
                                 doe_page, explore, msa_page, relate_page)
 from analysis_tools.io import excel_sheet_names, read_delimited, read_excel
 from analysis_tools.logging_setup import configure, get
+from analysis_tools.roles import classify_table
 
 configure()
 log = get("app")
@@ -95,14 +97,21 @@ def _sidebar_header() -> None:
 #: where the trial ends. These are read-only and synthetic; no real process
 #: data ships with the application.
 EXAMPLES = {
-    "— none, I will upload my own —": None,
-    "Construct history (vector selection)": "history.csv",
-    "Clone screen (early reads vs final)": "clone-screen.csv",
-    "Passage stability (generation limits)": "passage-stability.csv",
-    "Completed DOE (effects, curvature)": "doe-completed.csv",
-    "Capability run (Cp, Cpk, stability)": "capability-run.csv",
-    "Gage study (measurement systems)": "gage-study.csv",
-    "Process runs (compare groups)": "process-runs.csv",
+    "— none, I will upload my own —": (None, None),
+    "Construct history (vector selection)": ("history.csv",
+                                             "Cell line development"),
+    "Clone screen (early reads vs final)": ("clone-screen.csv",
+                                            "Cell line development"),
+    "Passage stability (generation limits)": ("passage-stability.csv",
+                                              "Cell line development"),
+    "Completed DOE (effects, curvature)": ("doe-completed.csv",
+                                           "Design of experiments"),
+    "Capability run (Cp, Cpk, stability)": ("capability-run.csv", "Capability"),
+    "Gage study (measurement systems)": ("gage-study.csv",
+                                         "Measurement systems"),
+    "Process runs (compare groups)": ("process-runs.csv", "Compare groups"),
+    "Characterisation runs (regression)": ("characterisation.csv",
+                                           "Relationships"),
 }
 
 
@@ -135,9 +144,18 @@ def _file_section():
     )
 
     if uploaded is None:
-        filename = EXAMPLES[chosen]
+        filename, module = EXAMPLES[chosen]
+        # Picking an example moves you to the module it was built for. Without
+        # this you stay wherever you were, which is how someone lands on the
+        # capability example inside Cell line development and reads a refusal
+        # as a broken tool. Only a *change* of example steers, so switching
+        # module afterwards sticks.
+        if module and st.session_state.get("_last_example") != chosen:
+            st.session_state["_last_example"] = chosen
+            st.session_state["module_choice"] = _module_label(module)
         if filename is None:
             st.session_state.pop("table", None)
+            st.session_state.pop("_last_example", None)
             return None
         path = _examples_directory() / filename
         try:
@@ -170,6 +188,15 @@ def _file_section():
         log.warning("failed to read %s: %s", name, exc)
         return None
 
+    # Classify here, at load, rather than inside the Explore page. Roles used
+    # to appear in the session only once Explore had been opened, so every
+    # other module greeted a freshly loaded file with "Open Explore first" —
+    # including the module an example had just steered you to. Loading a file
+    # and being told to go somewhere else before anything will work is a dead
+    # end, and it is the same dead end whether you arrived by example or by
+    # upload.
+    st.session_state["roles"] = classify_table(table.frame)
+
     log.info("read %s: %s", name, table.shape_text)
     st.sidebar.success("%s%s" % (table.shape_text,
                                  "" if uploaded is not None else "  ·  example"))
@@ -177,17 +204,32 @@ def _file_section():
     return table
 
 
+def _module_label(name: str) -> str:
+    """The radio's label for a module, which carries its status."""
+    built = next((b for n, _, b in MODULES if n == name), True)
+    return name if built else "%s  ·  not built yet" % name
+
+
 def _module_picker(have_data: bool) -> str:
     st.sidebar.divider()
     st.sidebar.markdown("#### Analysis")
+    roles = st.session_state.get("roles")
     labels, lookup = [], {}
     for name, blurb, built in MODULES:
-        label = name if built else "%s  ·  not built yet" % name
+        label = _module_label(name)
+        # Say up front which modules this file cannot drive, rather than
+        # letting someone pick one and meet a refusal. Marked, not removed:
+        # a module that vanishes looks like a tool that does less than it does.
+        if built and have_data and roles and not suitable(name, roles):
+            label = "%s  ·  not for this file" % name
         labels.append(label)
         lookup[label] = name
     # The design builder needs no data - you use it before the experiment -
     # so the picker stays live even with nothing loaded.
-    chosen = st.sidebar.radio("Module", labels, label_visibility="collapsed")
+    if st.session_state.get("module_choice") not in labels:
+        st.session_state.pop("module_choice", None)
+    chosen = st.sidebar.radio("Module", labels, label_visibility="collapsed",
+                              key="module_choice")
     blurb = next(b for n, b, _ in MODULES if n == lookup[chosen])
     st.sidebar.caption(blurb)
     return lookup[chosen]

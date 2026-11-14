@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import itertools
-
 import pandas as pd
 import streamlit as st
 
 from analysis_tools import charts
 from analysis_tools.doe import analyse_design, build_design
-from analysis_tools.roles import ATTRIBUTE_2, VARIABLES
+from analysis_tools.roles import VARIABLES
 
 
 def render(table) -> None:

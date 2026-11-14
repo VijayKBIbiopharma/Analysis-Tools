@@ -17,10 +17,9 @@ from analysis_tools.compare import (
     DIFFERENT, INCONCLUSIVE, NO_EVIDENCE, chi_square, compare_groups,
     logistic_regression, paired_t, simple_regression, two_sample_t,
 )
+from analysis_tools.app.fitness import explain
 from analysis_tools.roles import ATTRIBUTE_2, ATTRIBUTE_3PLUS, VARIABLES
-from analysis_tools.routing import (
-    CHI_SQUARE, LOGISTIC, PAIRED_T, REGRESSION, TWO_SAMPLE_T, plan_analysis,
-)
+from analysis_tools.routing import plan_analysis
 
 VERDICT_STYLE = {
     DIFFERENT: ("🔴", "error"),
@@ -39,11 +38,7 @@ def render(table) -> None:
     by_name = {r.name: r for r in roles}
     usable = [r.name for r in roles if r.analysable]
     if len(usable) < 2:
-        st.error(
-            "At least two columns have to be usable before anything can be "
-            "compared. See **Explore** for why the others were set aside.",
-            icon="🚫",
-        )
+        st.info(explain("Compare groups", roles, table.source_name), icon="🧭")
         return
 
     st.subheader("Compare groups")

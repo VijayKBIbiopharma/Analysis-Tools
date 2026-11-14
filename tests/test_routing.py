@@ -9,13 +9,12 @@ time, and several X's at once, crossed with the response type.
 """
 
 import pandas as pd
-import pytest
 
 from analysis_tools.roles import classify_column
 from analysis_tools.routing import (
-    BROWN_FORSYTHE, CHI_SQUARE, GLM, KRUSKAL_WALLIS, LOGISTIC,
+    BROWN_FORSYTHE, CHI_SQUARE, GLM, LOGISTIC,
     MULTIPLE_REGRESSION, ONE_WAY_ANOVA, PAIRED_T, REGRESSION, TESTS,
-    TWO_PROPORTIONS, TWO_SAMPLE_T, WELCH_ANOVA, plan_analysis,
+    TWO_PROPORTIONS, TWO_SAMPLE_T, plan_analysis,
 )
 
 # Columns of each kind, built once and reused so the tests read as the chart.

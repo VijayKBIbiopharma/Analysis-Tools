@@ -14,24 +14,25 @@ from analysis_tools.app.main import EXAMPLES, _examples_directory
 from analysis_tools.io import read_delimited
 from analysis_tools.roles import classify_column
 
-NAMED = [(label, filename) for label, filename in EXAMPLES.items() if filename]
+NAMED = [(label, filename, module)
+         for label, (filename, module) in EXAMPLES.items() if filename]
 
 
 def test_the_picker_offers_a_way_out():
     """The first option must be the one that clears the selection, or a user
     who picks an example can never get back to their own upload."""
     first = list(EXAMPLES.values())[0]
-    assert first is None
+    assert first == (None, None)
 
 
-@pytest.mark.parametrize("label,filename", NAMED, ids=[f for _, f in NAMED])
-def test_every_offered_example_exists(label, filename):
+@pytest.mark.parametrize("label,filename,module", NAMED, ids=[f for _, f, _ in NAMED])
+def test_every_offered_example_exists(label, filename, module):
     assert (_examples_directory() / filename).is_file(), (
         "the sidebar offers %r but %s is not in examples/" % (label, filename))
 
 
-@pytest.mark.parametrize("label,filename", NAMED, ids=[f for _, f in NAMED])
-def test_every_offered_example_loads_and_classifies(label, filename):
+@pytest.mark.parametrize("label,filename,module", NAMED, ids=[f for _, f, _ in NAMED])
+def test_every_offered_example_loads_and_classifies(label, filename, module):
     """Read it the way the sidebar does — from bytes, never a path."""
     data = (_examples_directory() / filename).read_bytes()
     table = read_delimited(data, source_name=filename)
@@ -48,7 +49,7 @@ def test_every_example_file_is_offered():
     """The converse: a file sitting in examples/ that the picker never shows
     is one nobody will find."""
     on_disk = {p.name for p in _examples_directory().glob("*.csv")}
-    offered = {f for f in EXAMPLES.values() if f}
+    offered = {f for f, _ in EXAMPLES.values() if f}
     unoffered = on_disk - offered
     # catalogue.csv and programs.csv are loaded inside the vector page, not
     # as the main table, so they are not front-door examples.
@@ -66,3 +67,33 @@ def test_no_example_carries_anything_that_looks_like_real_data():
         text = path.read_text(errors="ignore")
         found = suspicious.findall(text)
         assert not found, "%s contains %s" % (path.name, set(found))
+
+
+@pytest.mark.parametrize("label,filename,module", NAMED,
+                         ids=[f for _, f, _ in NAMED])
+def test_every_example_names_a_module_that_can_take_it(label, filename, module):
+    """The picker steers you to this module, so the file had better suit it.
+
+    Checked here against the declared requirement as well as in the app-flow
+    sweep, because this is the cheap version: it fails in milliseconds and
+    names the mismatch, rather than needing the whole app to be driven.
+    """
+    from analysis_tools.app.fitness import REQUIREMENTS, suitable
+    assert module in REQUIREMENTS, (
+        "%s is offered for %r, which is not a module" % (filename, module))
+    data = (_examples_directory() / filename).read_bytes()
+    table = read_delimited(data, source_name=filename)
+    roles = [classify_column(c, table.frame[c]) for c in table.frame.columns]
+    assert suitable(module, roles), (
+        "%s steers to %s but does not meet its requirement: %s"
+        % (filename, module, REQUIREMENTS[module].needs))
+
+
+def test_every_module_that_needs_data_has_an_example():
+    """A module nobody can demonstrate is one nobody evaluates."""
+    from analysis_tools.app.fitness import REQUIREMENTS
+    demonstrated = {module for _, module in EXAMPLES.values() if module}
+    needing = {name for name, req in REQUIREMENTS.items()
+               if req.needs_data and name != "Explore"}
+    missing = needing - demonstrated
+    assert not missing, "no example offered for: %s" % sorted(missing)

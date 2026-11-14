@@ -57,7 +57,6 @@ def test_a_grouping_input_enters_the_same_model_as_a_continuous_one():
 
 
 def test_the_anova_table_and_r_squared_come_from_statsmodels():
-    import statsmodels.api as sm
     from statsmodels.formula.api import ols
 
     frame = frame_with(n=90, seed=4)

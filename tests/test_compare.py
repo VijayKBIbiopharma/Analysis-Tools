@@ -15,7 +15,7 @@ import pytest
 from scipy import stats
 
 from analysis_tools.compare import (
-    DIFFERENT, INCONCLUSIVE, NO_EVIDENCE, _welch_anova, chi_square,
+    DIFFERENT, INCONCLUSIVE, _welch_anova, chi_square,
     compare_groups, logistic_regression, minimum_detectable_difference,
     paired_t, simple_regression, two_sample_t,
 )

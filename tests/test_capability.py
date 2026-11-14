@@ -11,7 +11,7 @@ import pytest
 from scipy import stats
 
 from analysis_tools.capability import (
-    D2_N2, FALSE_ALARM_BY_N, MINIMUM_CAPABLE, assess_capability,
+    D2_N2, FALSE_ALARM_BY_N, assess_capability,
     assess_stability, chance_of_a_signal, moving_range_sigma,
 )
 

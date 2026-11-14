@@ -18,6 +18,7 @@ from analysis_tools import charts
 from analysis_tools.cld_clones import (generation_limit, screen_early_reads)
 from analysis_tools.cld_vector import (plan_vector, read_catalogue,
                                        replicates_for)
+from analysis_tools.app.fitness import explain
 from analysis_tools.io import read_delimited, read_excel
 from analysis_tools.roles import (ATTRIBUTE_2, ATTRIBUTE_3PLUS, DATETIME,
                                   IDENTIFIER, VARIABLES)
@@ -105,10 +106,12 @@ def _vector(table) -> None:
     usable = [n for n, r in by_name.items()
               if r.role not in (IDENTIFIER, DATETIME)]
     if not responses or not categorical:
-        st.error(
-            "This needs a continuous response — titre, viability, specific "
-            "productivity — and at least one column holding the construct "
-            "parts. See **Explore** for how each column was read.", icon="🚫")
+        st.info(explain("Cell line development", list(by_name.values()),
+                        table.source_name),
+                icon="🧭")
+        st.caption(
+            "Vector selection in particular needs a column naming each "
+            "construct part — promoter, marker, helper plasmid.")
         return
 
     # Defaults from the column names, because the two boxes below are not
@@ -385,9 +388,11 @@ def _clones(table) -> None:
     frame: pd.DataFrame = table.frame
     numeric = [n for n, r in by_name.items() if r.role == VARIABLES]
     if len(numeric) < 2:
-        st.error("This needs at least two continuous measurements: one or more "
-                 "early reads and the late one they are meant to predict.",
-                 icon="🚫")
+        st.info(explain("Cell line development", list(by_name.values()),
+                        table.source_name),
+                icon="🧭")
+        st.caption("Clone screening needs one or more early reads and the "
+                   "late measurement they are meant to predict.")
         return
 
     # The endpoint, not whichever column happens to come last. Defaulting to
@@ -474,8 +479,11 @@ def _limits(table) -> None:
     frame: pd.DataFrame = table.frame
     numeric = [n for n, r in by_name.items() if r.role == VARIABLES]
     if len(numeric) < 2:
-        st.error("This needs a generation or passage column and a measurement "
-                 "to track against it.", icon="🚫")
+        st.info(explain("Cell line development", list(by_name.values()),
+                        table.source_name),
+                icon="🧭")
+        st.caption("Generation limits need a passage or generation column and "
+                   "a measurement to track against it.")
         return
 
     guess = next((i for i, n in enumerate(numeric)

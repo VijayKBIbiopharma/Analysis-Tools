@@ -5,7 +5,6 @@ which statistical test the tool will run on it. So these tests are not about
 tidy output, they are about whether the right test would be chosen.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

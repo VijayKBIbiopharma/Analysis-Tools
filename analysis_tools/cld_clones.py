@@ -24,7 +24,6 @@ from typing import Optional, Sequence
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from analysis_tools.assumptions import ALPHA, fmt_p
 

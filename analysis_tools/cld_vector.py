@@ -371,7 +371,6 @@ def plan_vector(history: pd.DataFrame, catalogue: dict, response: str,
     while len(sheet) < wells:
         extra = picked.iloc[[len(sheet) % distinct]].assign(Replicate=reps + 1)
         sheet = pd.concat([sheet, extra], ignore_index=True)
-    rng = np.random.default_rng(seed)
     sheet = sheet.head(wells).sample(frac=1.0, random_state=seed).reset_index(drop=True)
     sheet.insert(0, "Well", np.arange(1, len(sheet) + 1))
     plan.sheet = sheet
